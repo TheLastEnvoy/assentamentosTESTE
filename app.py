@@ -4,7 +4,7 @@ import folium
 from streamlit_folium import folium_static
 import streamlit as st
 import json
-from shapely.geometry import mapping, Point
+from shapely.geometry import mapping, Point, Polygon
 
 # Função para carregar GeoJSON com cache seletivo
 @st.cache(suppress_st_warning=True)
@@ -66,111 +66,55 @@ if gdf is not None:
     st.markdown("(As informações exibidas neste site são públicas e estão disponíveis no [Portal de Dados Abertos](https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-de-projetos-de-reforma-agraria---sipra))")
     st.write("Contato: 6dsvj@pm.me")
 
-    m = folium.Map(location=[-24.0, -51.0], zoom_start=7)
-
-    filters = {}
-
-    filter_columns = {
-        'uf': 'um estado',
-        'municipio': 'um município',
-        'nome_pa': 'um assentamento',
-        'cd_sipra': 'um código SIPRA',
-        'lotes': 'o limite de lotes',
-        'quant_fami': 'o limite de famílias beneficiárias',
-        'fase': 'uma fase de consolidação',
-        'data_criac': 'a data de criação',
-        'forma_obte': 'a forma de obtenção do imóvel',
-        'data_obten': 'a data de obtenção do imóvel',
-        'area_incra_min': 'a área mínima (hectares) segundo dados do INCRA',
-        'area_incra': 'a área máxima (hectares) segundo dados do INCRA',
-        'area_polig_min': 'a área mínima (hectares) segundo polígono',
-        'area_polig': 'a área máxima (hectares) segundo polígono'
+    # Opções de camadas
+    layer_options = {
+        'Assentamentos de Reforma Agrária': gdf.to_crs("EPSG:4326").to_json(),
+        'Vegetação': 'https://raw.githubusercontent.com/giswqs/data/main/world/world_cities.zip',
+        'Hidrografia': 'https://raw.githubusercontent.com/giswqs/data/main/world/rivers.geojson'
     }
+    selected_layer = st.selectbox("Escolha uma camada para visualizar:", list(layer_options.keys()))
 
-    options_lotes = [10, 50, 100, 300, 500, 800, 1200, 2000, 5000, 10000, 15000, 20000]
-    options_familias = options_lotes
-    options_area_incra = [500, 1000, 5000, 10000, 30000, 50000, 100000, 200000, 400000, 600000]
-
-    selected_state = 'PARANÁ'
-
-    for col, display_name in filter_columns.items():
-        if col in gdf.columns or col in ['area_incra_min', 'area_polig_min']:
-            if col == 'uf':
-                options = [''] + sorted(gdf[col].dropna().unique().tolist())
-                default_index = options.index(selected_state) if selected_state in options else 0
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, index=default_index)
-            elif col in ['lotes', 'quant_fami']:
-                options = [None] + sorted(options_lotes)
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Nenhum' if x is None else str(x))
-            elif col in ['area_incra', 'area_incra_min', 'area_polig', 'area_polig_min']:
-                options = [None] + sorted(options_area_incra)
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Nenhum' if x is None else str(x))
-            elif col == 'data_criac':
-                filters[col] = st.sidebar.date_input(f"Escolha {display_name}:", min_value=pd.to_datetime("1970-01-01"), max_value=pd.to_datetime("2034-12-31"))
-            else:
-                unique_values = [""] + sorted(gdf[col].dropna().unique().tolist())
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", unique_values, format_func=lambda x: 'Nenhum' if x == "" else str(x))
-
-    filtered_gdf = gdf.copy()
-    for col, value in filters.items():
-        if value is not None and value != "":
-            if col == 'area_incra':
-                filtered_gdf = filtered_gdf[filtered_gdf['area_incra'] <= value]
-            elif col == 'area_incra_min':
-                filtered_gdf = filtered_gdf[filtered_gdf['area_incra'] >= value]
-            elif col == 'area_polig':
-                filtered_gdf = filtered_gdf[filtered_gdf['area_polig'] <= value]
-            elif col == 'area_polig_min':
-                filtered_gdf = filtered_gdf[filtered_gdf['area_polig'] >= value]
-            elif col == 'lotes':
-                filtered_gdf = filtered_gdf[filtered_gdf['lotes'] <= value]
-            elif col == 'quant_fami':
-                filtered_gdf = filtered_gdf[filtered_gdf['quant_fami'] <= value]
-            elif col == 'data_criac':
-                filtered_gdf = filtered_gdf[pd.to_datetime(filtered_gdf['data_criac'], errors='coerce') <= pd.to_datetime(value)]
-            else:
-                filtered_gdf = filtered_gdf[filtered_gdf[col] == value]
-
-    # Adicionar interação para destacar polígonos selecionados
-    selected_polygon = st.selectbox("Selecione um polígono para destacar:", filtered_gdf['nome_pa'].tolist(), index=0)
-    if selected_polygon:
-        selected_row = filtered_gdf[filtered_gdf['nome_pa'] == selected_polygon].iloc[0]
-        area_formatted = format_area(selected_row.get('area_incra', 0))
-        area_polig_formatted = format_area(selected_row.get('area_polig', 0))
-        tooltip = f"<b>{selected_row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
-                  f"Área: {area_formatted} hectares<br>" \
-                  f"Área (segundo polígono): {area_polig_formatted} hectares<br>" \
-                  f"Lotes: {selected_row.get('lotes', 'N/A')}<br>" \
-                  f"Famílias: {selected_row.get('quant_fami', 'N/A')}<br>" \
-                  f"Fase: {selected_row.get('fase', 'N/A')}<br>" \
-                  f"Data de criação: {selected_row.get('data_criac', 'N/A')}<br>" \
-                  f"Forma de obtenção: {selected_row.get('forma_obte', 'N/A')}<br>" \
-                  f"Data de obtenção: {selected_row.get('data_obten', 'N/A')}"
+    if selected_layer == 'Assentamentos de Reforma Agrária':
+        m = folium.Map(location=[-24.0, -51.0], zoom_start=7)
+        for idx, row in gdf.iterrows():
+            area_formatted = format_area(row.get('area_incra', 0))
+            area_polig_formatted = format_area(row.get('area_polig', 0))
+            tooltip = f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
+                      f"Área: {area_formatted} hectares<br>" \
+                      f"Área (segundo polígono): {area_polig_formatted} hectares<br>" \
+                      f"Lotes: {row.get('lotes', 'N/A')}<br>" \
+                      f"Famílias: {row.get('quant_fami', 'N/A')}<br>" \
+                      f"Fase: {row.get('fase', 'N/A')}<br>" \
+                      f"Data de criação: {row.get('data_criac', 'N/A')}<br>" \
+                      f"Forma de obtenção: {row.get('forma_obte', 'N/A')}<br>" \
+                      f"Data de obtenção: {row.get('data_obten', 'N/A')}"
+            folium.GeoJson(
+                row.geometry,
+                tooltip=tooltip,
+            ).add_to(m)
+    else:
+        m = folium.Map(location=[0, 0], zoom_start=2)
         folium.GeoJson(
-            selected_row['geometry'],
-            tooltip=tooltip,
-            style_function=lambda x: {'fillColor': '#ffffff', 'color': '#ff0000', 'weight': 2, 'fillOpacity': 0.5}
+            layer_options[selected_layer],
+            name=selected_layer
         ).add_to(m)
 
-    # Adicionar funcionalidade de medição de distância
-    measure_distance = st.checkbox("Ativar medição de distância")
-    if measure_distance:
-        coords = []
-        measure_points = []
-        while st.button("Adicionar ponto para medição"):
+    # Adicionar funcionalidade de desenho de polígonos
+    draw_polygon = st.checkbox("Desenhar um polígono no mapa")
+    if draw_polygon:
+        drawn_polygon = []
+        while st.button("Concluir desenho do polígono"):
             latlon = st.map().location
-            coords.append((latlon.latitude, latlon.longitude))
-            measure_points.append(f"Point({latlon.longitude} {latlon.latitude})")
+            drawn_polygon.append((latlon.latitude, latlon.longitude))
 
-        if len(coords) > 1:
-            line = "LINESTRING(" + ", ".join(measure_points) + ")"
-            line_geom = gpd.GeoSeries.from_wkt(line)
-            folium.features.GeoJson(line_geom.to_json(), name="Measurement", style_function=lambda x: {'color':'#ff0000'}).add_to(m)
+        if len(drawn_polygon) > 2:
+            drawn_polygon.append(drawn_polygon[0])  # Fechar o polígono
+            folium.vector_layers.Polygon(locations=drawn_polygon, color='blue', fill=True, fill_color='blue').add_to(m)
 
     folium_static(m)
 
     # Baixar polígonos selecionados como GeoJSON
-    geojson = download_geojson(filtered_gdf)
+    geojson = download_geojson(gdf)
 
     st.markdown(f"### Baixar polígonos selecionados como GeoJSON")
     st.markdown("Clique abaixo para baixar um arquivo GeoJSON contendo os polígonos dos assentamentos selecionados.")
@@ -182,21 +126,20 @@ if gdf is not None:
         mime='application/json',
     )
 
-    # Exibir tabela de dados filtrados
-    filtered_gdf = filtered_gdf[['uf', 'municipio', 'cd_sipra', 'nome_pa', 'lotes', 'quant_fami', 'fase', 'area_incra', 'area_polig', 'data_criac', 'forma_obte', 'data_obten']]
+    # Exibir tabela de dados
     st.write("Tabela de dados:")
-    st.dataframe(filtered_gdf)
+    st.dataframe(gdf)
 
-    # Baixar dados filtrados como CSV
+    # Baixar dados como CSV
     @st.cache(suppress_st_warning=True)
     def convert_df(df):
         return df.to_csv(index=False).encode('utf-8')
 
-    csv = convert_df(filtered_gdf)
+    csv = convert_df(gdf)
 
     st.download_button(
-        label="Baixar dados filtrados como CSV",
+        label="Baixar dados como CSV",
         data=csv,
-        file_name='dados_filtrados.csv',
+        file_name='dados_assentamentos.csv',
         mime='text/csv',
     )
