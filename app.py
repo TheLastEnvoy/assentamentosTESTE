@@ -4,7 +4,7 @@ import folium
 from streamlit_folium import folium_static
 import streamlit as st
 import json
-from shapely.geometry import mapping, shape
+from shapely.geometry import mapping
 
 # Função para carregar GeoJSON com cache seletivo
 @st.cache(suppress_st_warning=True)
@@ -24,6 +24,35 @@ def load_geojson(file_path):
 # Função para formatar a área
 def format_area(area):
     return f"{area:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# Função para gerar GeoJSON dos polígonos filtrados
+def download_geojson(filtered_gdf):
+    selected_features = []
+    for idx, row in filtered_gdf.iterrows():
+        geom = row['geometry']
+        feature = {
+            'type': 'Feature',
+            'geometry': mapping(geom),
+            'properties': {
+                'nome_pa': row.get('nome_pa', 'N/A'),
+                'area_incra': row.get('area_incra', 'N/A'),
+                'area_polig': row.get('area_polig', 'N/A'),
+                'lotes': row.get('lotes', 'N/A'),
+                'quant_fami': row.get('quant_fami', 'N/A'),
+                'fase': row.get('fase', 'N/A'),
+                'data_criac': row.get('data_criac', 'N/A'),
+                'forma_obte': row.get('forma_obte', 'N/A'),
+                'data_obten': row.get('data_obten', 'N/A')
+            }
+        }
+        selected_features.append(feature)
+
+    feature_collection = {
+        'type': 'FeatureCollection',
+        'features': selected_features
+    }
+
+    return json.dumps(feature_collection)
 
 # Caminho para o arquivo GeoJSON
 geojson_path = "pasbr_geo.geojson"
@@ -116,24 +145,30 @@ if gdf is not None:
                   f"Data de obtenção: {row.get('data_obten', 'N/A')}"
         folium.GeoJson(
             row.geometry,
-            name=row.get('nome_pa', 'N/A'),
-            style_function=lambda feature: {
-                'fillColor': '#ffaf00',
-                'color': 'black',
-                'weight': 2,
-                'dashArray': '5, 5'
-            },
-            highlight_function=lambda x: {'weight': 3, 'color': '#ffaf00'},
-            tooltip=tooltip
+            tooltip=tooltip,
         ).add_to(m)
 
     folium_static(m)
 
-    filtered_gdf = filtered_gdf[['uf', 'municipio', 'cd_sipra', 'nome_pa', 'lotes', 'quant_fami', 'fase', 'area_incra', 'area_polig', 'data_criac', 'forma_obte', 'data_obten']]
+    # Baixar polígonos selecionados como GeoJSON
+    geojson = download_geojson(filtered_gdf)
 
+    st.markdown(f"### Baixar polígonos selecionados como GeoJSON")
+    st.markdown("Clique abaixo para baixar um arquivo GeoJSON contendo os polígonos dos assentamentos selecionados.")
+
+    st.download_button(
+        label="Baixar GeoJSON dos polígonos selecionados",
+        data=geojson,
+        file_name='poligonos_selecionados.geojson',
+        mime='application/json',
+    )
+
+    # Exibir tabela de dados filtrados
+    filtered_gdf = filtered_gdf[['uf', 'municipio', 'cd_sipra', 'nome_pa', 'lotes', 'quant_fami', 'fase', 'area_incra', 'area_polig', 'data_criac', 'forma_obte', 'data_obten']]
     st.write("Tabela de dados:")
     st.dataframe(filtered_gdf)
 
+    # Baixar dados filtrados como CSV
     @st.cache(suppress_st_warning=True)
     def convert_df(df):
         return df.to_csv(index=False).encode('utf-8')
