@@ -4,7 +4,8 @@ import folium
 from streamlit_folium import folium_static
 import streamlit as st
 import json
-from shapely.geometry import mapping, Point, Polygon
+import requests
+from requests.exceptions import RequestException, HTTPError
 
 # Função para carregar GeoJSON com cache seletivo
 @st.cache(suppress_st_warning=True)
@@ -54,6 +55,16 @@ def download_geojson(filtered_gdf):
 
     return json.dumps(feature_collection)
 
+# Função para obter GeoJSON a partir de uma URL
+def get_geojson_from_url(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json()
+    except RequestException as e:
+        st.error(f"Erro ao carregar dados da camada: {e}")
+        return None
+
 # Caminho para o arquivo GeoJSON
 geojson_path = "pasbr_geo.geojson"
 
@@ -66,13 +77,13 @@ if gdf is not None:
     st.markdown("(As informações exibidas neste site são públicas e estão disponíveis no [Portal de Dados Abertos](https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-de-projetos-de-reforma-agraria---sipra))")
     st.write("Contato: 6dsvj@pm.me")
 
-    # Opções de camadas
+    # Menu lateral para seleção de camadas
     layer_options = {
         'Assentamentos de Reforma Agrária': gdf.to_crs("EPSG:4326").to_json(),
         'Vegetação': 'https://raw.githubusercontent.com/giswqs/data/main/world/world_cities.zip',
         'Hidrografia': 'https://raw.githubusercontent.com/giswqs/data/main/world/rivers.geojson'
     }
-    selected_layer = st.selectbox("Escolha uma camada para visualizar:", list(layer_options.keys()))
+    selected_layer = st.sidebar.selectbox("Escolha uma camada para visualizar:", list(layer_options.keys()))
 
     if selected_layer == 'Assentamentos de Reforma Agrária':
         m = folium.Map(location=[-24.0, -51.0], zoom_start=7)
@@ -93,23 +104,13 @@ if gdf is not None:
                 tooltip=tooltip,
             ).add_to(m)
     else:
-        m = folium.Map(location=[0, 0], zoom_start=2)
-        folium.GeoJson(
-            layer_options[selected_layer],
-            name=selected_layer
-        ).add_to(m)
-
-    # Adicionar funcionalidade de desenho de polígonos
-    draw_polygon = st.checkbox("Desenhar um polígono no mapa")
-    if draw_polygon:
-        drawn_polygon = []
-        while st.button("Concluir desenho do polígono"):
-            latlon = st.map().location
-            drawn_polygon.append((latlon.latitude, latlon.longitude))
-
-        if len(drawn_polygon) > 2:
-            drawn_polygon.append(drawn_polygon[0])  # Fechar o polígono
-            folium.vector_layers.Polygon(locations=drawn_polygon, color='blue', fill=True, fill_color='blue').add_to(m)
+        geojson_data = get_geojson_from_url(layer_options[selected_layer])
+        if geojson_data:
+            m = folium.Map(location=[0, 0], zoom_start=2)
+            folium.GeoJson(
+                geojson_data,
+                name=selected_layer
+            ).add_to(m)
 
     folium_static(m)
 
