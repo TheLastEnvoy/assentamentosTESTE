@@ -6,13 +6,16 @@ import streamlit as st
 import json
 from shapely.geometry import mapping
 
-# Função para carregar GeoJSON
-@st.cache_data
+# Função para carregar GeoJSON com cache seletivo
+@st.cache(suppress_st_warning=True)
 def load_geojson(file_path):
     try:
         gdf = gpd.read_file(file_path)
         gdf['area_incra'] = pd.to_numeric(gdf['area_incra'], errors='coerce')
         gdf['area_polig'] = pd.to_numeric(gdf['area_polig'], errors='coerce')
+        if gdf.crs != "EPSG:4326":
+            gdf = gdf.to_crs("EPSG:4326")
+        gdf = gdf[gdf.geometry.is_valid & gdf.geometry.notna()]
         return gdf
     except Exception as e:
         st.error(f"Erro ao carregar GeoJSON: {e}")
@@ -30,15 +33,6 @@ gdf = load_geojson(geojson_path)
 
 # Verificar se o GeoJSON foi carregado com sucesso
 if gdf is not None:
-    if gdf.crs != "EPSG:4326":
-        try:
-            gdf = gdf.to_crs("EPSG:4326")
-        except Exception as e:
-            st.error(f"Erro ao reprojetar para EPSG:4326: {e}")
-            st.stop()
-
-    gdf = gdf[gdf.geometry.is_valid & gdf.geometry.notna()]
-    
     st.title("Mapa interativo com os projetos de assentamento de reforma agrária no Brasil")
     st.markdown("(As informações exibidas neste site são públicas e estão disponíveis no [Portal de Dados Abertos](https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-de-projetos-de-reforma-agraria---sipra))")
     st.write("Contato: 6dsvj@pm.me")
@@ -126,6 +120,7 @@ if gdf is not None:
 
     folium_static(m)
 
+    @st.cache(suppress_st_warning=True)
     def download_geojson(filtered_gdf):
         selected_features = []
         for idx, row in filtered_gdf.iterrows():
@@ -171,7 +166,7 @@ if gdf is not None:
     st.write("Tabela de dados:")
     st.dataframe(filtered_gdf)
 
-    @st.cache_data
+    @st.cache(suppress_st_warning=True)
     def convert_df(df):
         return df.to_csv(index=False).encode('utf-8')
 
