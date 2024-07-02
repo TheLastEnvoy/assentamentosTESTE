@@ -4,7 +4,7 @@ import folium
 from streamlit_folium import folium_static
 import streamlit as st
 import json
-from shapely.geometry import mapping
+from shapely.geometry import mapping, Point
 
 # Função para carregar GeoJSON com cache seletivo
 @st.cache(suppress_st_warning=True)
@@ -131,22 +131,41 @@ if gdf is not None:
             else:
                 filtered_gdf = filtered_gdf[filtered_gdf[col] == value]
 
-    for idx, row in filtered_gdf.iterrows():
-        area_formatted = format_area(row.get('area_incra', 0))
-        area_polig_formatted = format_area(row.get('area_polig', 0))
-        tooltip = f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
+    # Adicionar interação para destacar polígonos selecionados
+    selected_polygon = st.selectbox("Selecione um polígono para destacar:", filtered_gdf['nome_pa'].tolist(), index=0)
+    if selected_polygon:
+        selected_row = filtered_gdf[filtered_gdf['nome_pa'] == selected_polygon].iloc[0]
+        area_formatted = format_area(selected_row.get('area_incra', 0))
+        area_polig_formatted = format_area(selected_row.get('area_polig', 0))
+        tooltip = f"<b>{selected_row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
                   f"Área: {area_formatted} hectares<br>" \
                   f"Área (segundo polígono): {area_polig_formatted} hectares<br>" \
-                  f"Lotes: {row.get('lotes', 'N/A')}<br>" \
-                  f"Famílias: {row.get('quant_fami', 'N/A')}<br>" \
-                  f"Fase: {row.get('fase', 'N/A')}<br>" \
-                  f"Data de criação: {row.get('data_criac', 'N/A')}<br>" \
-                  f"Forma de obtenção: {row.get('forma_obte', 'N/A')}<br>" \
-                  f"Data de obtenção: {row.get('data_obten', 'N/A')}"
+                  f"Lotes: {selected_row.get('lotes', 'N/A')}<br>" \
+                  f"Famílias: {selected_row.get('quant_fami', 'N/A')}<br>" \
+                  f"Fase: {selected_row.get('fase', 'N/A')}<br>" \
+                  f"Data de criação: {selected_row.get('data_criac', 'N/A')}<br>" \
+                  f"Forma de obtenção: {selected_row.get('forma_obte', 'N/A')}<br>" \
+                  f"Data de obtenção: {selected_row.get('data_obten', 'N/A')}"
         folium.GeoJson(
-            row.geometry,
+            selected_row['geometry'],
             tooltip=tooltip,
+            style_function=lambda x: {'fillColor': '#ffffff', 'color': '#ff0000', 'weight': 2, 'fillOpacity': 0.5}
         ).add_to(m)
+
+    # Adicionar funcionalidade de medição de distância
+    measure_distance = st.checkbox("Ativar medição de distância")
+    if measure_distance:
+        coords = []
+        measure_points = []
+        while st.button("Adicionar ponto para medição"):
+            latlon = st.map().location
+            coords.append((latlon.latitude, latlon.longitude))
+            measure_points.append(f"Point({latlon.longitude} {latlon.latitude})")
+
+        if len(coords) > 1:
+            line = "LINESTRING(" + ", ".join(measure_points) + ")"
+            line_geom = gpd.GeoSeries.from_wkt(line)
+            folium.features.GeoJson(line_geom.to_json(), name="Measurement", style_function=lambda x: {'color':'#ff0000'}).add_to(m)
 
     folium_static(m)
 
