@@ -7,6 +7,7 @@ import json
 from shapely.geometry import mapping
 
 # Função para carregar GeoJSON
+@st.cache_data
 def load_geojson(file_path):
     try:
         gdf = gpd.read_file(file_path)
@@ -125,7 +126,8 @@ if gdf is not None:
 
     folium_static(m)
 
-    def download_geojson():
+    @st.cache_data
+    def download_geojson(filtered_gdf):
         selected_features = []
         for idx, row in filtered_gdf.iterrows():
             geom = row['geometry']
@@ -153,7 +155,7 @@ if gdf is not None:
 
         return json.dumps(feature_collection)
 
-    geojson = download_geojson()
+    geojson = download_geojson(filtered_gdf)
 
     st.markdown(f"### Baixar polígonos selecionados como GeoJSON")
     st.markdown("Clique abaixo para baixar um arquivo GeoJSON contendo os polígonos dos assentamentos selecionados.")
@@ -170,7 +172,7 @@ if gdf is not None:
     st.write("Tabela de dados:")
     st.dataframe(filtered_gdf)
 
-    @st.cache
+    @st.cache_data
     def convert_df(df):
         return df.to_csv(index=False).encode('utf-8')
 
