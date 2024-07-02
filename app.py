@@ -126,7 +126,6 @@ if gdf is not None:
 
     folium_static(m)
 
-    @st.cache_data
     def download_geojson(filtered_gdf):
         selected_features = []
         for idx, row in filtered_gdf.iterrows():
