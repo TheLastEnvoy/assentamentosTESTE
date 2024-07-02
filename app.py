@@ -81,7 +81,7 @@ if gdf is not None:
     layer_options = {
         'Assentamentos de Reforma Agrária': gdf.to_crs("EPSG:4326").to_json(),
         'Vegetação': 'https://raw.githubusercontent.com/giswqs/data/main/world/world_cities.zip',
-        'Hidrografia': 'https://raw.githubusercontent.com/giswqs/data/main/world/rivers.geojson'
+        'Hidrografia': gpd.datasets.get_path('naturalearth_lowres')
     }
     selected_layer = st.sidebar.selectbox("Escolha uma camada para visualizar:", list(layer_options.keys()))
 
