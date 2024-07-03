@@ -7,7 +7,7 @@ import json
 from shapely.geometry import mapping
 
 # Função para carregar GeoJSON com cache seletivo
-@st.cache(suppress_st_warning=True)
+@st.cache_data  # Atualizado para usar st.cache_data
 def load_geojson(file_path):
     try:
         gdf = gpd.read_file(file_path)
@@ -54,6 +54,21 @@ def download_geojson(filtered_gdf):
 
     return json.dumps(feature_collection)
 
+# Função para obter o centro do estado ou município
+def get_center(gdf, state=None, municipality=None):
+    if municipality:
+        subset = gdf[gdf['municipio'] == municipality]
+    elif state:
+        subset = gdf[gdf['uf'] == state]
+    else:
+        return [-15.77972, -47.92972]  # Centro do Brasil (Brasília)
+    
+    if not subset.empty:
+        center = subset.geometry.unary_union.centroid
+        return [center.y, center.x]
+    else:
+        return [-15.77972, -47.92972]  # Centro do Brasil (Brasília)
+
 # Caminho para o arquivo GeoJSON
 geojson_path = "pasbr_geo.geojson"
 
@@ -91,7 +106,18 @@ if gdf is not None:
     options_familias = options_lotes
     options_area_incra = [500, 1000, 5000, 10000, 30000, 50000, 100000, 200000, 400000, 600000]
 
-    selected_state = 'PARANÁ'
+    # Filtro de estado
+    state_options = [''] + sorted(gdf['uf'].dropna().unique().tolist())
+    selected_state = st.sidebar.selectbox("Escolha um estado:", state_options, index=0)
+    filters['uf'] = selected_state
+
+    # Filtro de município
+    if selected_state:
+        municipality_options = [''] + sorted(gdf[gdf['uf'] == selected_state]['municipio'].dropna().unique().tolist())
+    else:
+        municipality_options = [''] + sorted(gdf['municipio'].dropna().unique().tolist())
+    selected_municipality = st.sidebar.selectbox("Escolha um município:", municipality_options, index=0)
+    filters['municipio'] = selected_municipality
 
     for col, display_name in filter_columns.items():
         if col in gdf.columns or col in ['area_incra_min', 'area_polig_min']:
@@ -131,6 +157,41 @@ if gdf is not None:
             else:
                 filtered_gdf = filtered_gdf[filtered_gdf[col] == value]
 
+    # Obter o centro do mapa com base nos filtros
+    if selected_municipality:
+        center = get_center(gdf, municipality=selected_municipality)
+        zoom = 9
+    elif selected_state:
+        center = get_center(gdf, state=selected_state)
+        zoom = 7
+    else:
+        center = [-15.77972, -47.92972]
+        zoom = 4
+
+    m = folium.Map(location=center, zoom_start=zoom)
+
+    # Desenhar polígonos apenas se um estado ou município for selecionado
+    if selected_state or selected_municipality:
+        for _, row in filtered_gdf.iterrows():
+            area_formatted = format_area(row.get('area_incra', 0))
+            area_polig_formatted = format_area(row.get('area_polig', 0))
+            tooltip = f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
+                      f"Área: {area_formatted} hectares<br>" \
+                      f"Área (segundo polígono): {area_polig_formatted} hectares<br>" \
+                      f"Lotes: {row.get('lotes', 'N/A')}<br>" \
+                      f"Famílias: {row.get('quant_fami', 'N/A')}<br>" \
+                      f"Fase: {row.get('fase', 'N/A')}<br>" \
+                      f"Data de criação: {row.get('data_criac', 'N/A')}<br>" \
+                      f"Forma de obtenção: {row.get('forma_obte', 'N/A')}<br>" \
+                      f"Data de obtenção: {row.get('data_obten', 'N/A')}"
+            folium.GeoJson(
+                row.geometry,
+                tooltip=tooltip,
+            ).add_to(m)
+
+    folium_static(m)
+
+
     for idx, row in filtered_gdf.iterrows():
         area_formatted = format_area(row.get('area_incra', 0))
         area_polig_formatted = format_area(row.get('area_polig', 0))
@@ -151,33 +212,35 @@ if gdf is not None:
     folium_static(m)
 
     # Baixar polígonos selecionados como GeoJSON
-    geojson = download_geojson(filtered_gdf)
+    if selected_state or selected_municipality:
+        geojson = download_geojson(filtered_gdf)
 
-    st.markdown(f"### Baixar polígonos selecionados como GeoJSON")
-    st.markdown("Clique abaixo para baixar um arquivo GeoJSON contendo os polígonos dos assentamentos selecionados.")
+        st.markdown(f"### Baixar polígonos selecionados como GeoJSON")
+        st.markdown("Clique abaixo para baixar um arquivo GeoJSON contendo os polígonos dos assentamentos selecionados.")
 
-    st.download_button(
-        label="Baixar GeoJSON dos polígonos selecionados",
-        data=geojson,
-        file_name='poligonos_selecionados.geojson',
-        mime='application/json',
-    )
+        st.download_button(
+            label="Baixar GeoJSON dos polígonos selecionados",
+            data=geojson,
+            file_name='poligonos_selecionados.geojson',
+            mime='application/json',
+        )
 
     # Exibir tabela de dados filtrados
-    filtered_gdf = filtered_gdf[['uf', 'municipio', 'cd_sipra', 'nome_pa', 'lotes', 'quant_fami', 'fase', 'area_incra', 'area_polig', 'data_criac', 'forma_obte', 'data_obten']]
-    st.write("Tabela de dados:")
-    st.dataframe(filtered_gdf)
+    if selected_state or selected_municipality:
+        filtered_gdf = filtered_gdf[['uf', 'municipio', 'cd_sipra', 'nome_pa', 'lotes', 'quant_fami', 'fase', 'area_incra', 'area_polig', 'data_criac', 'forma_obte', 'data_obten']]
+        st.write("Tabela de dados:")
+        st.dataframe(filtered_gdf)
 
-    # Baixar dados filtrados como CSV
-    @st.cache(suppress_st_warning=True)
-    def convert_df(df):
-        return df.to_csv(index=False).encode('utf-8')
+        # Baixar dados filtrados como CSV
+        @st.cache_data  # Atualizado para usar st.cache_data
+        def convert_df(df):
+            return df.to_csv(index=False).encode('utf-8')
 
-    csv = convert_df(filtered_gdf)
+        csv = convert_df(filtered_gdf)
 
-    st.download_button(
-        label="Baixar dados filtrados como CSV",
-        data=csv,
-        file_name='dados_filtrados.csv',
-        mime='text/csv',
-    )
+        st.download_button(
+            label="Baixar dados filtrados como CSV",
+            data=csv,
+            file_name='dados_filtrados.csv',
+            mime='text/csv',
+        )
