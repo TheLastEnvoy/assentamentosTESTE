@@ -133,10 +133,9 @@ if gdf is not None:
 
     # Verificar se há resultados filtrados
     if not filtered_gdf.empty:
-        centroid = filtered_gdf.geometry.centroid
-        center_lat = centroid.y.mean()
-        center_lon = centroid.x.mean()
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=10)
+        bounds = filtered_gdf.total_bounds  # retorna (minx, miny, maxx, maxy)
+        m = folium.Map(location=[(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2], zoom_start=10)
+        m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
     else:
         st.warning("Nenhum resultado encontrado para os filtros selecionados.")
 
