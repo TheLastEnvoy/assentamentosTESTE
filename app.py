@@ -200,3 +200,5 @@ if gdf is not None:
         file_name='dados_filtrados.csv',
         mime='text/csv',
     )
+else:
+    st.error("Falha ao carregar o GeoJSON. Verifique o arquivo de dados.")
