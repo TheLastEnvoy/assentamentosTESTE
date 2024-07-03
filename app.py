@@ -4,7 +4,7 @@ import folium
 from streamlit_folium import folium_static
 import streamlit as st
 import json
-from shapely.geometry import mapping, MultiPolygon
+from shapely.geometry import mapping
 
 # Função para carregar GeoJSON com cache seletivo
 @st.cache(suppress_st_warning=True)
@@ -24,14 +24,6 @@ def load_geojson(file_path):
 # Função para formatar a área
 def format_area(area):
     return f"{area:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-# Função para calcular o centroide de polígonos
-def calculate_centroid(gdf):
-    if isinstance(gdf, gpd.GeoDataFrame):
-        if len(gdf) > 0:
-            centroid = gdf.geometry.centroid
-            return [centroid.y.mean(), centroid.x.mean()]
-    return None
 
 # Função para gerar GeoJSON dos polígonos filtrados
 def download_geojson(filtered_gdf):
@@ -74,12 +66,7 @@ if gdf is not None:
     st.markdown("(As informações exibidas neste site são públicas e estão disponíveis no [Portal de Dados Abertos](https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-de-projetos-de-reforma-agraria---sipra))")
     st.write("Contato: 6dsvj@pm.me")
 
-    # Inicializar o mapa com o centroide dos polígonos filtrados
-    centroid = calculate_centroid(filtered_gdf)
-    if centroid:
-        m = folium.Map(location=centroid, zoom_start=7)
-    else:
-        m = folium.Map(location=[-24.0, -51.0], zoom_start=7)
+    m = folium.Map(location=[-24.0, -51.0], zoom_start=7)
 
     filters = {}
 
@@ -156,17 +143,10 @@ if gdf is not None:
                   f"Data de criação: {row.get('data_criac', 'N/A')}<br>" \
                   f"Forma de obtenção: {row.get('forma_obte', 'N/A')}<br>" \
                   f"Data de obtenção: {row.get('data_obten', 'N/A')}"
-        if isinstance(row.geometry, MultiPolygon):
-            for geom in row.geometry.geoms:
-                folium.GeoJson(
-                    geom,
-                    tooltip=tooltip,
-                ).add_to(m)
-        else:
-            folium.GeoJson(
-                row.geometry,
-                tooltip=tooltip,
-            ).add_to(m)
+        folium.GeoJson(
+            row.geometry,
+            tooltip=tooltip,
+        ).add_to(m)
 
     folium_static(m)
 
