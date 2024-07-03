@@ -188,7 +188,7 @@ if gdf is not None:
         st.dataframe(filtered_gdf)
 
         # Baixar dados filtrados como CSV
-        @st.cache_data(suppress_st_warning=True)
+        @st.cache(suppress_st_warning=True)
         def convert_df(df):
             return df.to_csv(index=False).encode('utf-8')
 
