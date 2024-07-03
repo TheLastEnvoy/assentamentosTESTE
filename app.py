@@ -138,7 +138,9 @@ if gdf is not None:
                     filtered_gdf = filtered_gdf[filtered_gdf['uf'] == value]
 
     # Verificar se há polígonos filtrados antes de criar o mapa
-    if not filtered_gdf.empty:
+    if not filters or not any(filters.values()):
+        st.info("Faça uma seleção nos filtros à esquerda para visualizar os resultados.")
+    elif not filtered_gdf.empty:
         m = folium.Map(location=[-15.77972, -47.92972], zoom_start=4)
 
         # Adicionar os polígonos filtrados ao mapa
