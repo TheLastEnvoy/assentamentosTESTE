@@ -153,6 +153,7 @@ if gdf is not None:
     for idx, row in filtered_gdf.iterrows():
         area_formatted = format_area(row.get('area_incra', 0))
         area_polig_formatted = format_area(row.get('area_polig', 0))
+
         tooltip = f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
                   f"Área: {area_formatted} hectares<br>" \
                   f"Área (segundo polígono): {area_polig_formatted} hectares<br>" \
