@@ -89,21 +89,17 @@ if gdf is not None:
     options_familias = options_lotes
     options_area_incra = [500, 1000, 5000, 10000, 30000, 50000, 100000, 200000, 400000, 600000]
 
-    selected_state = 'PARANÁ'
-
     for col, display_name in filter_columns.items():
         if col in gdf.columns or col in ['area_incra_min', 'area_polig_min']:
             if col == 'uf':
                 options = [''] + sorted(gdf[col].dropna().unique().tolist())
-                default_index = options.index(selected_state) if selected_state in options else 0
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, index=default_index)
+                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options)
             elif col == 'municipio':
                 if 'uf' in filters and filters['uf']:
-                    if filters['uf']:
-                        municipios_estado = [''] + sorted(gdf[gdf['uf'] == filters['uf']]['municipio'].dropna().unique().tolist())
-                        filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", municipios_estado)
-                    else:
-                        filters[col] = ''
+                    municipios_estado = [''] + sorted(gdf[gdf['uf'] == filters['uf']]['municipio'].dropna().unique().tolist())
+                    filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", municipios_estado)
+                else:
+                    filters[col] = ''
             elif col in ['lotes', 'quant_fami']:
                 options = [None] + sorted(options_lotes)
                 filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Todos' if x is None else str(x))
@@ -136,13 +132,12 @@ if gdf is not None:
                 filtered_gdf = filtered_gdf[pd.to_datetime(filtered_gdf['data_criac'], errors='coerce') <= pd.to_datetime(value)]
             elif col == 'municipio':
                 if 'uf' in filters and filters['uf']:
-                    if value:
-                        filtered_gdf = filtered_gdf[filtered_gdf['municipio'] == value]
+                    filtered_gdf = filtered_gdf[filtered_gdf['municipio'] == value]
             elif col == 'uf':
                 if value:
                     filtered_gdf = filtered_gdf[filtered_gdf['uf'] == value]
 
-    # Criar o mapa com base nos polígonos filtrados
+    # Verificar se há polígonos filtrados antes de criar o mapa
     if not filtered_gdf.empty:
         m = folium.Map(location=[-15.77972, -47.92972], zoom_start=4)
 
@@ -202,3 +197,5 @@ if gdf is not None:
         )
     else:
         st.warning("Nenhum resultado encontrado com os filtros selecionados.")
+else:
+    st.error("Não foi possível carregar o arquivo GeoJSON.")
