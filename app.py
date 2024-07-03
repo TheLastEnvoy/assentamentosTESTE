@@ -97,6 +97,12 @@ if gdf is not None:
                 options = [''] + sorted(gdf[col].dropna().unique().tolist())
                 default_index = options.index(selected_state) if selected_state in options else 0
                 filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, index=default_index)
+            elif col == 'municipio':
+                if 'uf' in filters and filters['uf']:
+                    municipios_estado = sorted(gdf[gdf['uf'] == filters['uf']]['municipio'].dropna().unique().tolist())
+                else:
+                    municipios_estado = ['']
+                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", municipios_estado)
             elif col in ['lotes', 'quant_fami']:
                 options = [None] + sorted(options_lotes)
                 filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Todos' if x is None else str(x))
@@ -126,8 +132,9 @@ if gdf is not None:
                 filtered_gdf = filtered_gdf[filtered_gdf['quant_fami'] <= value]
             elif col == 'data_criac':
                 filtered_gdf = filtered_gdf[pd.to_datetime(filtered_gdf['data_criac'], errors='coerce') <= pd.to_datetime(value)]
-            else:
-                filtered_gdf = filtered_gdf[filtered_gdf[col] == value]
+            elif col == 'municipio':
+                if 'uf' in filters and filters['uf']:
+                    filtered_gdf = filtered_gdf[filtered_gdf['municipio'] == value]
 
     # Criar o mapa com base nos polígonos filtrados
     if not filtered_gdf.empty:
@@ -189,3 +196,5 @@ if gdf is not None:
         )
     else:
         st.warning("Nenhum resultado encontrado com os filtros selecionados.")
+else:
+    st.error("Erro ao carregar o GeoJSON. Verifique o arquivo e tente novamente.")
