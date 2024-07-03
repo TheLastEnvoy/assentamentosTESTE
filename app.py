@@ -91,13 +91,9 @@ if gdf is not None:
     options_familias = options_lotes
     options_area_incra = [500, 1000, 5000, 10000, 30000, 50000, 100000, 200000, 400000, 600000]
 
-    selected_state = 'PARANÁ'
-
     # Seleção de Estado
     state_options = [''] + sorted(gdf['uf'].dropna().unique().tolist())
-    default_state_index = state_options.index(selected_state) if selected_state in state_options else 0
-    selected_state = st.sidebar.selectbox("Escolha um estado:", state_options, index=default_state_index)
-    filters['uf'] = selected_state
+    selected_state = st.sidebar.selectbox("Escolha um estado:", state_options)
 
     # Filtrar municípios com base no estado selecionado
     if selected_state:
@@ -106,21 +102,23 @@ if gdf is not None:
     else:
         municipality_options = [''] + sorted(gdf['municipio'].dropna().unique().tolist())
 
+    # Usando as opções selecionadas
+    filters['uf'] = selected_state
+
     for col, display_name in filter_columns.items():
-        if col in gdf.columns or col in ['area_incra_min', 'area_polig_min']:
-            if col == 'municipio':
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", municipality_options, format_func=lambda x: 'Nenhum' if x == "" else str(x))
-            elif col == 'lotes' or col == 'quant_fami':
-                options = [None] + sorted(options_lotes)
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Nenhum' if x is None else str(x))
-            elif col in ['area_incra', 'area_incra_min', 'area_polig', 'area_polig_min']:
-                options = [None] + sorted(options_area_incra)
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Nenhum' if x is None else str(x))
-            elif col == 'data_criac':
-                filters[col] = st.sidebar.date_input(f"Escolha {display_name}:", min_value=pd.to_datetime("1970-01-01"), max_value=pd.to_datetime("2034-12-31"))
-            else:
-                unique_values = [""] + sorted(gdf[col].dropna().unique().tolist())
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", unique_values, format_func=lambda x: 'Nenhum' if x == "" else str(x))
+        if col == 'municipio':
+            filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", municipality_options, format_func=lambda x: 'Nenhum' if x == "" else str(x))
+        elif col == 'lotes' or col == 'quant_fami':
+            options = [None] + sorted(options_lotes)
+            filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Nenhum' if x is None else str(x))
+        elif col in ['area_incra', 'area_incra_min', 'area_polig', 'area_polig_min']:
+            options = [None] + sorted(options_area_incra)
+            filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Nenhum' if x is None else str(x))
+        elif col == 'data_criac':
+            filters[col] = st.sidebar.date_input(f"Escolha {display_name}:", min_value=pd.to_datetime("1970-01-01"), max_value=pd.to_datetime("2034-12-31"))
+        else:
+            unique_values = [""] + sorted(gdf[col].dropna().unique().tolist())
+            filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", unique_values, format_func=lambda x: 'Nenhum' if x == "" else str(x))
 
     filtered_gdf = gdf.copy()
     for col, value in filters.items():
@@ -154,52 +152,36 @@ if gdf is not None:
         area_formatted = format_area(row.get('area_incra', 0))
         area_polig_formatted = format_area(row.get('area_polig', 0))
 
-        tooltip = f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
-                  f"Área: {area_formatted} hectares<br>" \
-                  f"Área (segundo polígono): {area_polig_formatted} hectares<br>" \
-                  f"Lotes: {row.get('lotes', 'N/A')}<br>" \
-                  f"Famílias: {row.get('quant_fami', 'N/A')}<br>" \
-                  f"Fase: {row.get('fase', 'N/A')}<br>" \
-                  f"Data de criação: {row.get('data_criac', 'N/A')}<br>" \
-                  f"Forma de obtenção: {row.get('forma_obte', 'N/A')}<br>" \
-                  f"Data de obtenção: {row.get('data_obten', 'N/A')}"
+        tooltip = f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>"
+        tooltip += f"<b>Área INCRA:</b> {area_formatted} hectares<br>"
+        tooltip += f"<b>Área Polígono:</b> {area_polig_formatted} hectares<br>"
+        tooltip += f"<b>Lotes:</b> {row.get('lotes', 'N/A')}<br>"
+        tooltip += f"<b>Famílias Beneficiárias:</b> {row.get('quant_fami', 'N/A')}<br>"
+        tooltip += f"<b>Fase de Consolidação:</b> {row.get('fase', 'N/A')}<br>"
+        tooltip += f"<b>Data de Criação:</b> {row.get('data_criac', 'N/A')}<br>"
+        tooltip += f"<b>Forma de Obtenção:</b> {row.get('forma_obte', 'N/A')}<br>"
+        tooltip += f"<b>Data de Obtenção:</b> {row.get('data_obten', 'N/A')}<br>"
+
+        geojson_feature = {
+            'type': 'Feature',
+            'geometry': mapping(row['geometry']),
+            'properties': {
+                'tooltip': tooltip
+            }
+        }
+
         folium.GeoJson(
-            row.geometry,
-            tooltip=tooltip,
+            geojson_feature,
+            style_function=lambda x: {'color': 'blue', 'weight': 1.5, 'fillOpacity': 0.5},
+            tooltip=tooltip
         ).add_to(m)
 
     folium_static(m)
 
-    # Baixar polígonos selecionados como GeoJSON
-    geojson = download_geojson(filtered_gdf)
+    # Download do GeoJSON filtrado
+    if st.button("Baixar GeoJSON dos polígonos filtrados"):
+        filtered_geojson = download_geojson(filtered_gdf)
+        st.markdown(get_download_link(filtered_geojson, "filtered_geojson.json", "Clique aqui para baixar o GeoJSON filtrado"), unsafe_allow_html=True)
 
-    st.markdown(f"### Baixar polígonos selecionados como GeoJSON")
-    st.markdown("Clique abaixo para baixar um arquivo GeoJSON contendo os polígonos dos assentamentos selecionados.")
-
-    st.download_button(
-        label="Baixar GeoJSON dos polígonos selecionados",
-        data=geojson,
-        file_name='poligonos_selecionados.geojson',
-        mime='application/json',
-    )
-
-    # Exibir tabela de dados filtrados
-    filtered_gdf = filtered_gdf[['uf', 'municipio', 'cd_sipra', 'nome_pa', 'lotes', 'quant_fami', 'fase', 'area_incra', 'area_polig', 'data_criac', 'forma_obte', 'data_obten']]
-    st.write("Tabela de dados:")
-    st.dataframe(filtered_gdf)
-
-    # Baixar dados filtrados como CSV
-    @st.cache(suppress_st_warning=True)
-    def convert_df(df):
-        return df.to_csv(index=False).encode('utf-8')
-
-    csv = convert_df(filtered_gdf)
-
-    st.download_button(
-        label="Baixar dados filtrados como CSV",
-        data=csv,
-        file_name='dados_filtrados.csv',
-        mime='text/csv',
-    )
 else:
-    st.error("Falha ao carregar o GeoJSON. Verifique o arquivo de dados.")
+    st.warning("Não foi possível carregar o GeoJSON. Por favor, verifique o arquivo e tente novamente.")
