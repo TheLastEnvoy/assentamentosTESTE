@@ -85,9 +85,9 @@ if gdf is not None:
         'area_polig': 'a área máxima (hectares) segundo polígono'
     }
 
-    options_lotes = [10, 50, 100, 300, 500, 800, 1200, 2000, 5000, 10000, 15000, 20000]
+    options_lotes = [10, 50, 100, 300, 500, 800, 1200, 2000, 5000, 10000, 15000, 20000, 30000]
     options_familias = options_lotes
-    options_area_incra = [500, 1000, 5000, 10000, 30000, 50000, 100000, 200000, 400000, 600000]
+    options_area_incra = [500, 1000, 5000, 10000, 30000, 50000, 100000, 200000, 400000, 600000, 1000000, 1600000]
 
     selected_state = 'PARANÁ'
 
