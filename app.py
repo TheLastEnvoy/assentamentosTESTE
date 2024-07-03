@@ -131,6 +131,15 @@ if gdf is not None:
             else:
                 filtered_gdf = filtered_gdf[filtered_gdf[col] == value]
 
+    # Verificar se há resultados filtrados
+    if not filtered_gdf.empty:
+        centroid = filtered_gdf.geometry.centroid
+        center_lat = centroid.y.mean()
+        center_lon = centroid.x.mean()
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=10)
+    else:
+        st.warning("Nenhum resultado encontrado para os filtros selecionados.")
+
     for idx, row in filtered_gdf.iterrows():
         area_formatted = format_area(row.get('area_incra', 0))
         area_polig_formatted = format_area(row.get('area_polig', 0))
