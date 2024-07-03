@@ -93,13 +93,24 @@ if gdf is not None:
 
     selected_state = 'PARANÁ'
 
+    # Seleção de Estado
+    state_options = [''] + sorted(gdf['uf'].dropna().unique().tolist())
+    default_state_index = state_options.index(selected_state) if selected_state in state_options else 0
+    selected_state = st.sidebar.selectbox("Escolha um estado:", state_options, index=default_state_index)
+    filters['uf'] = selected_state
+
+    # Filtrar municípios com base no estado selecionado
+    if selected_state:
+        filtered_gdf_state = gdf[gdf['uf'] == selected_state]
+        municipality_options = [''] + sorted(filtered_gdf_state['municipio'].dropna().unique().tolist())
+    else:
+        municipality_options = [''] + sorted(gdf['municipio'].dropna().unique().tolist())
+
     for col, display_name in filter_columns.items():
         if col in gdf.columns or col in ['area_incra_min', 'area_polig_min']:
-            if col == 'uf':
-                options = [''] + sorted(gdf[col].dropna().unique().tolist())
-                default_index = options.index(selected_state) if selected_state in options else 0
-                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, index=default_index)
-            elif col in ['lotes', 'quant_fami']:
+            if col == 'municipio':
+                filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", municipality_options, format_func=lambda x: 'Nenhum' if x == "" else str(x))
+            elif col == 'lotes' or col == 'quant_fami':
                 options = [None] + sorted(options_lotes)
                 filters[col] = st.sidebar.selectbox(f"Escolha {display_name}:", options, format_func=lambda x: 'Nenhum' if x is None else str(x))
             elif col in ['area_incra', 'area_incra_min', 'area_polig', 'area_polig_min']:
