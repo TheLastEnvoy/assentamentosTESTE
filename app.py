@@ -93,12 +93,6 @@ if gdf is not None:
 
     selected_state = 'PARANÁ'
 
-    # Seleção de Estado
-    state_options = [''] + sorted(gdf['uf'].dropna().unique().tolist())
-    default_state_index = state_options.index(selected_state) if selected_state in state_options else 0
-    selected_state = st.sidebar.selectbox("Escolha um estado:", state_options, index=default_state_index)
-    filters['uf'] = selected_state
-
     # Filtrar municípios com base no estado selecionado
     if selected_state:
         filtered_gdf_state = gdf[gdf['uf'] == selected_state]
