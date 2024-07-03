@@ -4,7 +4,7 @@ import folium
 from streamlit_folium import folium_static
 import streamlit as st
 import json
-from shapely.geometry import mapping
+from shapely.geometry import Polygon, mapping
 
 # Função para carregar GeoJSON com cache seletivo
 @st.cache(suppress_st_warning=True)
@@ -54,6 +54,20 @@ def download_geojson(filtered_gdf):
 
     return json.dumps(feature_collection)
 
+# Função para calcular o centroide dos polígonos filtrados
+def calculate_centroid(filtered_gdf):
+    try:
+        # Verifica se há geometrias na GeoDataFrame filtrada
+        if not filtered_gdf.empty:
+            # Calcula o centroide dos polígonos filtrados
+            centroid = filtered_gdf['geometry'].centroid.unary_union
+            return [centroid.y, centroid.x]  # Retorna latitude e longitude do centroide
+        else:
+            return None  # Retorna None se não houver geometrias filtradas
+    except Exception as e:
+        st.error(f"Erro ao calcular centroide: {e}")
+        return None
+
 # Caminho para o arquivo GeoJSON
 geojson_path = "pasbr_geo.geojson"
 
@@ -65,8 +79,6 @@ if gdf is not None:
     st.title("Mapa interativo com os projetos de assentamento de reforma agrária no Brasil")
     st.markdown("(As informações exibidas neste site são públicas e estão disponíveis no [Portal de Dados Abertos](https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-de-projetos-de-reforma-agraria---sipra))")
     st.write("Contato: 6dsvj@pm.me")
-
-    m = folium.Map(location=[-24.0, -51.0], zoom_start=7)
 
     filters = {}
 
@@ -130,6 +142,13 @@ if gdf is not None:
                 filtered_gdf = filtered_gdf[pd.to_datetime(filtered_gdf['data_criac'], errors='coerce') <= pd.to_datetime(value)]
             else:
                 filtered_gdf = filtered_gdf[filtered_gdf[col] == value]
+
+    # Calcula o centroide dos polígonos filtrados
+    centroid = calculate_centroid(filtered_gdf)
+    if centroid:
+        m = folium.Map(location=centroid, zoom_start=7)
+    else:
+        m = folium.Map(location=[-24.0, -51.0], zoom_start=7)
 
     for idx, row in filtered_gdf.iterrows():
         area_formatted = format_area(row.get('area_incra', 0))
