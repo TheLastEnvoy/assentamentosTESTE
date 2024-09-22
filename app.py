@@ -7,7 +7,7 @@ import json
 from shapely.geometry import mapping
 
 # Função para carregar GeoJSON com cache seletivo
-@st.cache(suppress_st_warning=True)
+@st.cache_data
 def load_geojson(file_path):
     try:
         gdf = gpd.read_file(file_path)
@@ -27,12 +27,10 @@ def format_area(area):
 
 # Função para gerar GeoJSON dos polígonos filtrados
 def download_geojson(filtered_gdf):
-    selected_features = []
-    for idx, row in filtered_gdf.iterrows():
-        geom = row['geometry']
-        feature = {
+    selected_features = [
+        {
             'type': 'Feature',
-            'geometry': mapping(geom),
+            'geometry': mapping(row['geometry']),
             'properties': {
                 'nome_pa': row.get('nome_pa', 'N/A'),
                 'area_incra': row.get('area_incra', 'N/A'),
@@ -44,14 +42,12 @@ def download_geojson(filtered_gdf):
                 'forma_obte': row.get('forma_obte', 'N/A'),
                 'data_obten': row.get('data_obten', 'N/A')
             }
-        }
-        selected_features.append(feature)
-
+        } for _, row in filtered_gdf.iterrows()
+    ]
     feature_collection = {
         'type': 'FeatureCollection',
         'features': selected_features
     }
-
     return json.dumps(feature_collection)
 
 # Caminho para o arquivo GeoJSON
@@ -67,7 +63,6 @@ if gdf is not None:
     st.write("Contato: 6dsvj@pm.me")
 
     filters = {}
-
     filter_columns = {
         'uf': 'um estado',
         'municipio': 'um município',
@@ -90,7 +85,6 @@ if gdf is not None:
     options_area_incra = [500, 1000, 5000, 10000, 30000, 50000, 100000, 200000, 400000, 600000, 1000000, 1600000]
 
     selected_state = 'PARANÁ'
-
     for col, display_name in filter_columns.items():
         if col in gdf.columns or col in ['area_incra_min', 'area_polig_min']:
             if col == 'uf':
@@ -145,36 +139,31 @@ if gdf is not None:
     # Criar o mapa com base nos polígonos filtrados
     if not filtered_gdf.empty:
         m = folium.Map(location=[-15.77972, -47.92972], zoom_start=4)
-
         # Adicionar os polígonos filtrados ao mapa
-        for idx, row in filtered_gdf.iterrows():
+        for _, row in filtered_gdf.iterrows():
             area_formatted = format_area(row.get('area_incra', 0))
             area_polig_formatted = format_area(row.get('area_polig', 0))
-            tooltip = f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>" \
-                      f"Área: {area_formatted} hectares<br>" \
-                      f"Área (segundo polígono): {area_polig_formatted} hectares<br>" \
-                      f"Lotes: {row.get('lotes', 'N/A')}<br>" \
-                      f"Famílias: {row.get('quant_fami', 'N/A')}<br>" \
-                      f"Fase: {row.get('fase', 'N/A')}<br>" \
-                      f"Data de criação: {row.get('data_criac', 'N/A')}<br>" \
-                      f"Forma de obtenção: {row.get('forma_obte', 'N/A')}<br>" \
-                      f"Data de obtenção: {row.get('data_obten', 'N/A')}"
-            folium.GeoJson(
-                row.geometry,
-                tooltip=tooltip,
-            ).add_to(m)
+            tooltip = (
+                f"<b>{row.get('nome_pa', 'N/A')} (Assentamento)</b><br>"
+                f"Área: {area_formatted} hectares<br>"
+                f"Área (segundo polígono): {area_polig_formatted} hectares<br>"
+                f"Lotes: {row.get('lotes', 'N/A')}<br>"
+                f"Famílias: {row.get('quant_fami', 'N/A')}<br>"
+                f"Fase: {row.get('fase', 'N/A')}<br>"
+                f"Data de criação: {row.get('data_criac', 'N/A')}<br>"
+                f"Forma de obtenção: {row.get('forma_obte', 'N/A')}<br>"
+                f"Data de obtenção: {row.get('data_obten', 'N/A')}"
+            )
+            folium.GeoJson(row.geometry, tooltip=tooltip).add_to(m)
 
         # Ajustar o mapa para exibir todos os polígonos
         m.fit_bounds(m.get_bounds())
-
         folium_static(m)
 
         # Baixar polígonos selecionados como GeoJSON
         geojson = download_geojson(filtered_gdf)
-
         st.markdown(f"### Baixar polígonos selecionados como GeoJSON")
         st.markdown("Clique abaixo para baixar um arquivo GeoJSON contendo os polígonos dos assentamentos selecionados.")
-
         st.download_button(
             label="Baixar GeoJSON dos polígonos selecionados",
             data=geojson,
@@ -188,12 +177,11 @@ if gdf is not None:
         st.dataframe(filtered_gdf)
 
         # Baixar dados filtrados como CSV
-        @st.cache(suppress_st_warning=True)
+        @st.cache_data
         def convert_df(df):
             return df.to_csv(index=False).encode('utf-8')
 
         csv = convert_df(filtered_gdf)
-
         st.download_button(
             label="Baixar dados filtrados como CSV",
             data=csv,
